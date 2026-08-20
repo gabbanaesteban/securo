@@ -306,3 +306,19 @@ def test_headers_are_recognised_in_every_language_the_app_ships(header, row, exp
     assert orders[0].fee == Decimal("1.20")
     assert orders[0].kind == expected_kind
     assert str(orders[0].date) == "2026-01-15"
+
+
+@pytest.mark.asyncio
+async def test_created_holding_takes_the_quote_currency_not_the_file(
+    session: AsyncSession, test_user: User, test_workspace: Workspace, provider
+):
+    """A file reporting a US stock in BRL must not label the holding BRL while
+    its price feed keeps returning USD."""
+    summary = await _import(session, test_workspace, test_user, _csv(
+        "ticker,date,quantity,price,currency",
+        "AAPL,2026-01-15,10,150.00,BRL",
+    ), provider)
+
+    assert summary["imported"] == 1
+    stored = await _only_asset(session, test_workspace)
+    assert stored.currency == "USD"  # what the provider quotes it in

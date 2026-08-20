@@ -474,7 +474,11 @@ async def import_orders(
                 workspace_id=workspace_id,
                 name=order.name or quote.name or order.ticker,
                 type=asset_transaction_service._type_from_quote(quote.quote_type),
-                currency=order.currency or quote.currency,
+                # The quote's currency wins, exactly as when a holding is
+                # created by hand: a file that reports an American stock in
+                # BRL would otherwise label the holding BRL while its price
+                # feed keeps returning USD, and the portfolio total drifts.
+                currency=quote.currency,
                 valuation_method='market_price',
                 group_id=group_id,
                 ticker=order.ticker,
