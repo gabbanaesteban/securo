@@ -54,22 +54,115 @@ ASSET_CSV_REQUIRED_FIELDS = ('ticker', 'date', 'quantity', 'price')
 #: after normalization. A file whose headers are recognised needs no mapping
 #: step at all; anything else falls through to the dropdowns.
 _COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
-    'ticker': ('ticker', 'symbol', 'simbolo', 'ativo', 'papel', 'codigo', 'code', 'isin'),
-    'date': ('date', 'data', 'trade date', 'data do negocio', 'data negocio', 'settlement date'),
-    'quantity': ('quantity', 'qty', 'quantidade', 'shares', 'units', 'amount of shares'),
-    'price': ('price', 'preco', 'preco unitario', 'unit price', 'price per share', 'valor unitario'),
-    'fee': ('fee', 'fees', 'taxa', 'taxas', 'corretagem', 'commission', 'custos'),
-    'kind': ('kind', 'type', 'tipo', 'side', 'operacao', 'operation', 'buy/sell', 'c/v'),
-    'currency': ('currency', 'moeda', 'ccy'),
-    'name': ('name', 'nome', 'description', 'descricao', 'security'),
-    'notes': ('notes', 'note', 'observacao', 'observacoes', 'obs'),
+    # One entry per language Securo is translated into, because a broker
+    # export is written in the language of the person who downloaded it.
+    # Diacritics are folded before matching, so `Preço` finds `preco`; the
+    # Cyrillic and Polish entries are spelled as they actually appear.
+    'ticker': (
+        'ticker', 'symbol', 'code', 'isin',
+        'simbolo', 'ativo', 'papel', 'codigo',                    # pt
+        'activo', 'valor',                                        # es
+        'symbole', 'titre', 'actif',                              # fr
+        'wertpapier', 'kuerzel', 'kurzel', 'wkn',                 # de
+        'titolo', 'strumento',                                    # it
+        'walor', 'instrument',                                    # pl
+        'тикер', 'символ', 'бумага',                              # ru
+        'тікер', 'папір',                                         # uk
+    ),
+    'date': (
+        'date', 'trade date', 'settlement date',
+        'data', 'data do negocio', 'data negocio',                # pt
+        'fecha', 'fecha operacion',                               # es
+        'date de transaction', 'date operation',                  # fr
+        'datum', 'handelstag', 'buchungstag',                     # de
+        'data operazione',                                        # it
+        'data transakcji',                                        # pl
+        'дата', 'дата сделки',                                    # ru
+        'дата операції',                                          # uk
+    ),
+    'quantity': (
+        'quantity', 'qty', 'shares', 'units', 'amount of shares',
+        'quantidade',                                             # pt
+        'cantidad', 'titulos',                                    # es
+        'quantite', 'nombre', 'titres',                           # fr
+        'menge', 'stueck', 'stuck', 'anzahl', 'stueckzahl',       # de
+        'quantita', 'numero',                                     # it
+        'ilosc', 'ilość', 'liczba', 'wolumen',                    # pl
+        'количество', 'кол-во', 'объем',                          # ru
+        'кількість', 'обсяг',                                     # uk
+    ),
+    'price': (
+        'price', 'unit price', 'price per share',
+        'preco', 'preco unitario', 'valor unitario',              # pt
+        'precio', 'precio unitario', 'cotizacion',                # es
+        'prix', 'cours', 'prix unitaire',                         # fr
+        'preis', 'kurs', 'stueckpreis',                           # de
+        'prezzo', 'prezzo unitario', 'quotazione',                # it
+        'cena', 'cena jednostkowa',                               # pl
+        'цена', 'курс',                                           # ru
+        'ціна',                                                   # uk
+    ),
+    'fee': (
+        'fee', 'fees', 'commission', 'costs',
+        'taxa', 'taxas', 'corretagem', 'custos',                  # pt
+        'comision', 'comisiones', 'gastos',                       # es
+        'frais', 'courtage',                                      # fr
+        'gebuehr', 'gebuhr', 'gebuehren', 'provision', 'kosten',  # de
+        'commissione', 'commissioni', 'spese',                    # it
+        'prowizja', 'oplata', 'opłata', 'koszty',                 # pl
+        'комиссия', 'сбор',                                       # ru
+        'комісія', 'збір',                                        # uk
+    ),
+    'kind': (
+        'kind', 'type', 'side', 'operation', 'buy/sell',
+        'tipo', 'operacao', 'c/v',                                # pt
+        'operacion', 'compra/venta', 'sentido',                   # es
+        'sens', 'achat/vente',                                    # fr
+        'art', 'richtung', 'kauf/verkauf', 'transaktionsart',     # de
+        'operazione', 'segno', 'acquisto/vendita',                # it
+        'rodzaj', 'operacja', 'kupno/sprzedaz', 'strona',         # pl
+        'операция', 'направление', 'покупка/продажа',             # ru
+        'операція', 'купівля/продаж',                             # uk
+    ),
+    'currency': (
+        'currency', 'ccy', 'moeda', 'moneda', 'divisa', 'devise', 'monnaie',
+        'waehrung', 'wahrung', 'valuta', 'waluta', 'валюта',
+    ),
+    'name': (
+        'name', 'description', 'security',
+        'nome', 'descricao', 'nombre', 'descripcion', 'nom', 'libelle',
+        'bezeichnung', 'beschreibung', 'descrizione', 'nazwa', 'opis',
+        'название', 'наименование', 'назва',
+    ),
+    'notes': (
+        'notes', 'note', 'observacao', 'observacoes', 'obs', 'observaciones',
+        'remarques', 'notizen', 'bemerkung', 'notatki', 'uwagi',
+        'заметки', 'примечание', 'нотатки', 'примітки',
+    ),
     'external_id': ('external_id', 'id', 'order id', 'trade id', 'reference'),
 }
 
 #: Values that mean "this row is a sale". Everything else is read as a buy,
 #: except a negative quantity, which is the convention most brokers export.
-_SELL_WORDS = {'sell', 'sale', 'sold', 's', 'venda', 'v', 'vender', 'saida'}
-_BUY_WORDS = {'buy', 'purchase', 'bought', 'b', 'compra', 'c', 'comprar', 'entrada'}
+_SELL_WORDS = {
+    'sell', 'sale', 'sold', 's',
+    'venda', 'vender', 'saida', 'v',                              # pt
+    'venta',                                                      # es
+    'vendre', 'vente',                                            # fr
+    'verkauf', 'verkaufen', 'vk',                                 # de
+    'vendita', 'vendere',                                         # it
+    'sprzedaz', 'sprzedaż', 'sprzedac',                           # pl
+    'продажа', 'продать', 'продаж', 'продати',                    # ru/uk
+}
+_BUY_WORDS = {
+    'buy', 'purchase', 'bought', 'b',
+    'compra', 'comprar', 'entrada', 'c',                          # pt/es
+    'achat', 'acheter',                                           # fr
+    'kauf', 'kaufen', 'kf',                                       # de
+    'acquisto', 'acquistare',                                     # it
+    'kupno', 'zakup', 'kupic', 'kupić',                           # pl
+    'покупка', 'купить', 'купівля', 'купити',                     # ru/uk
+}
 
 
 def _decode(content: bytes) -> str:

@@ -278,3 +278,31 @@ async def test_dry_run_writes_nothing(
     assert summary["imported"] == 1
     assert summary["holdings_created"] == 1
     assert (await session.execute(select(Asset))).scalars().first() is None
+
+
+@pytest.mark.parametrize(
+    "header,row,expected_kind",
+    [
+        # One export per language Securo is translated into.
+        ("Symbol,Date,Quantity,Price,Fee,Side", "AAPL,2026-01-15,10,150.00,1.20,buy", "buy"),
+        ("Ativo;Data;Quantidade;Preço;Corretagem;Operação", "AAPL;15/01/2026;10;150,00;1,20;compra", "buy"),
+        ("Activo,Fecha,Cantidad,Precio,Comisión,Operación", "AAPL,15/01/2026,10,150.00,1.20,venta", "sell"),
+        ("Symbole,Date,Quantité,Cours,Frais,Sens", "AAPL,15/01/2026,10,150.00,1.20,achat", "buy"),
+        ("Wertpapier;Datum;Stück;Kurs;Gebühr;Art", "AAPL;15.01.2026;10;150,00;1,20;verkauf", "sell"),
+        ("Titolo,Data,Quantità,Prezzo,Commissioni,Operazione", "AAPL,15/01/2026,10,150.00,1.20,acquisto", "buy"),
+        ("Walor;Data;Ilość;Cena;Prowizja;Rodzaj", "AAPL;15/01/2026;10;150,00;1,20;kupno", "buy"),
+        ("Тикер,Дата,Количество,Цена,Комиссия,Операция", "AAPL,15/01/2026,10,150.00,1.20,продажа", "sell"),
+        ("Тікер,Дата,Кількість,Ціна,Комісія,Операція", "AAPL,15/01/2026,10,150.00,1.20,купівля", "buy"),
+    ],
+)
+def test_headers_are_recognised_in_every_language_the_app_ships(header, row, expected_kind):
+    """A broker export is written in the language of whoever downloaded it."""
+    orders, errors, _ = asset_import_service.parse_orders_csv(_csv(header, row))
+    assert errors == [], header
+    assert len(orders) == 1, header
+    assert orders[0].ticker == "AAPL"
+    assert orders[0].quantity == Decimal("10")
+    assert orders[0].price == Decimal("150.00")
+    assert orders[0].fee == Decimal("1.20")
+    assert orders[0].kind == expected_kind
+    assert str(orders[0].date) == "2026-01-15"
