@@ -203,12 +203,12 @@ export default function AssetImportPage() {
             </div>
 
             {walletWarnings.length > 0 && (
-              <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
-                <p className="mb-2 flex items-center gap-2 text-sm font-medium text-sky-400">
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950">
+                <p className="mb-2 flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300">
                   <Info size={14} />
                   {t('assetImport.walletWarningTitle')}
                 </p>
-                <ul className="space-y-1 text-xs text-muted-foreground">
+                <ul className="space-y-1 text-xs text-blue-600 dark:text-blue-300/80">
                   {walletWarnings.map((w) => (
                     <li key={`${w.ticker}-${w.reason}`}>
                       {t(`assetImport.warning.${w.reason}`, {
@@ -222,8 +222,8 @@ export default function AssetImportPage() {
             )}
 
             {rowErrors.length > 0 && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-                <p className="mb-2 flex items-center gap-2 text-sm font-medium text-amber-500">
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+                <p className="mb-2 flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
                   <AlertTriangle size={14} />
                   {t('assetImport.rowsSkipped', { count: rowErrors.length })}
                 </p>
