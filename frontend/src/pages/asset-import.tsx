@@ -125,8 +125,6 @@ export default function AssetImportPage() {
       />
 
       <SectionCard>
-        <p className="mb-4 text-sm text-muted-foreground">{t('assetImport.intro')}</p>
-
         <div className="mb-4 grid gap-2 sm:max-w-xs">
           <Label htmlFor="asset-import-wallet">{t('assetImport.wallet')}</Label>
           <select

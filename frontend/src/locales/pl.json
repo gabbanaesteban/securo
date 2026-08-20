@@ -1116,7 +1116,6 @@
   "assetImport": {
     "title": "Importuj zlecenia inwestycyjne",
     "action": "Importuj zlecenia",
-    "intro": "Wgraj plik CSV z kupnami i sprzedażami od swojego brokera. Securo policzy pozycję i cenę średnią na podstawie zleceń, tak samo jak przy wpisach ręcznych.",
     "choose": "Wybierz plik CSV",
     "chooseHint": "Ticker, data, ilość i cena są wymagane. Ujemna ilość oznacza sprzedaż.",
     "downloadTemplate": "Pobierz szablon",

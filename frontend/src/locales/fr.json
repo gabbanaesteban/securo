@@ -1041,7 +1041,6 @@
   "assetImport": {
     "title": "Importer des ordres d'investissement",
     "action": "Importer des ordres",
-    "intro": "Envoyez un CSV d'achats et de ventes de votre courtier. Securo calcule la position et le prix moyen à partir des ordres, comme pour ceux saisis à la main.",
     "choose": "Choisir un fichier CSV",
     "chooseHint": "Ticker, date, quantité et prix sont obligatoires. Une quantité négative est lue comme une vente.",
     "downloadTemplate": "Télécharger le modèle",

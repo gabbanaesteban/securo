@@ -1041,7 +1041,6 @@
   "assetImport": {
     "title": "Importar órdenes de inversión",
     "action": "Importar órdenes",
-    "intro": "Sube un CSV de compras y ventas de tu bróker. Securo calcula la posición y el precio medio a partir de las órdenes, igual que con las añadidas a mano.",
     "choose": "Elegir un archivo CSV",
     "chooseHint": "Ticker, fecha, cantidad y precio son obligatorios. Una cantidad negativa se lee como venta.",
     "downloadTemplate": "Descargar plantilla",
