@@ -1038,6 +1038,54 @@
     "mapExternalId": "Colonne d'ID de transaction",
     "mapNotes": "Colonne des notes"
   },
+  "assetImport": {
+    "title": "Importer des ordres d'investissement",
+    "action": "Importer des ordres",
+    "intro": "Envoyez un CSV d'achats et de ventes de votre courtier. Securo calcule la position et le prix moyen à partir des ordres, comme pour ceux saisis à la main.",
+    "choose": "Choisir un fichier CSV",
+    "chooseHint": "Ticker, date, quantité et prix sont obligatoires. Une quantité négative est lue comme une vente.",
+    "downloadTemplate": "Télécharger le modèle",
+    "wallet": "Portefeuille",
+    "noWallet": "Aucun portefeuille",
+    "reading": "Lecture du fichier…",
+    "mapPrompt": "Impossible d'identifier les colonnes. Associez chaque champ à une colonne de votre fichier.",
+    "ignoreColumn": "Ignorer",
+    "previewError": "Impossible de lire ce fichier",
+    "importError": "Impossible d'importer les ordres",
+    "imported": "{{count}} ordres importés",
+    "importing": "Importation…",
+    "confirm": "Importer {{count}} ordres",
+    "summaryOrders": "{{count}} ordres prêts",
+    "summaryHoldings": "{{created}} actifs créés, {{matched}} trouvés",
+    "summarySkipped": "{{count}} déjà importés",
+    "rowsSkipped": "{{count}} lignes seront ignorées",
+    "rowError": "Ligne {{row}} ({{ticker}}) : {{reason}}",
+    "moreErrors": "et {{count}} de plus",
+    "moreRows": "et {{count}} ordres de plus",
+    "field": {
+      "ticker": "Ticker",
+      "date": "Date",
+      "quantity": "Quantité",
+      "price": "Prix",
+      "fee": "Frais",
+      "kind": "Achat/Vente",
+      "currency": "Devise",
+      "notes": "Notes"
+    },
+    "kind": {
+      "buy": "Achat",
+      "sell": "Vente"
+    },
+    "reason": {
+      "missing_ticker": "aucun ticker",
+      "invalid_date": "date illisible",
+      "invalid_quantity": "quantité illisible",
+      "invalid_price": "prix illisible",
+      "invalid_kind": "achat/vente non reconnu",
+      "unknown_ticker": "ticker introuvable chez le fournisseur de cours",
+      "oversell": "vente supérieure à la position"
+    }
+  },
   "assets": {
     "title": "Actifs",
     "addAsset": "Ajouter un actif",

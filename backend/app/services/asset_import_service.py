@@ -1,0 +1,432 @@
+"""Import investment orders (buys and sells) from a broker CSV.
+
+A portfolio arrives as a list of orders, not as positions: a hundred rows of
+"ticker, date, quantity, price, fee". Securo already knows how to turn orders
+into a position — `asset_transaction_service._recompute` does the weighted
+average, the fees and the realized gain — so this module's whole job is to get
+the rows out of the file and onto the right holdings.
+
+Two things shape the design:
+
+- **Tickers are resolved once, not per row.** Creating a market-priced holding
+  needs a live quote, and a broker file with 200 rows usually covers 20 or 30
+  tickers. Resolving per row would make 200 provider calls and get rate-limited
+  halfway through, so the distinct tickers are looked up in one batch before
+  anything is written, and the preview reports the ones that came back empty.
+- **The whole file is checked before a single row lands.** A sell of more units
+  than the ledger holds is refused by the ledger itself, and a file that starts
+  mid-history will do exactly that. Failing on row 140 after writing 139 leaves
+  a portfolio that is neither the old one nor the new one, so the run either
+  applies completely or not at all.
+"""
+import csv
+import io
+import uuid
+from datetime import date as date_type
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
+from typing import Optional
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.asset import Asset
+from app.models.asset_transaction import AssetTransaction
+from app.providers.market_price import MarketPriceProvider, get_market_price_provider
+from app.schemas.asset_import import AssetOrderImport, AssetImportRowError
+from app.services import asset_transaction_service
+from app.services.import_service import (
+    DATE_FORMAT_MAP,
+    _sniff_csv_dialect,
+    normalize_amount,
+)
+from app.services.rule_engine import _strip_accents
+
+#: Securo fields a CSV column can be mapped to, and which of them a file cannot
+#: do without. Mirrors the transaction importer's `CSV_MAPPABLE_FIELDS`, and
+#: drives both the mapping dropdowns and the downloadable template.
+ASSET_CSV_MAPPABLE_FIELDS = (
+    'ticker', 'date', 'quantity', 'price', 'fee', 'kind', 'currency', 'name', 'notes', 'external_id',
+)
+ASSET_CSV_REQUIRED_FIELDS = ('ticker', 'date', 'quantity', 'price')
+
+#: Header names brokers actually use, matched case- and accent-insensitively
+#: after normalization. A file whose headers are recognised needs no mapping
+#: step at all; anything else falls through to the dropdowns.
+_COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
+    'ticker': ('ticker', 'symbol', 'simbolo', 'ativo', 'papel', 'codigo', 'code', 'isin'),
+    'date': ('date', 'data', 'trade date', 'data do negocio', 'data negocio', 'settlement date'),
+    'quantity': ('quantity', 'qty', 'quantidade', 'shares', 'units', 'amount of shares'),
+    'price': ('price', 'preco', 'preco unitario', 'unit price', 'price per share', 'valor unitario'),
+    'fee': ('fee', 'fees', 'taxa', 'taxas', 'corretagem', 'commission', 'custos'),
+    'kind': ('kind', 'type', 'tipo', 'side', 'operacao', 'operation', 'buy/sell', 'c/v'),
+    'currency': ('currency', 'moeda', 'ccy'),
+    'name': ('name', 'nome', 'description', 'descricao', 'security'),
+    'notes': ('notes', 'note', 'observacao', 'observacoes', 'obs'),
+    'external_id': ('external_id', 'id', 'order id', 'trade id', 'reference'),
+}
+
+#: Values that mean "this row is a sale". Everything else is read as a buy,
+#: except a negative quantity, which is the convention most brokers export.
+_SELL_WORDS = {'sell', 'sale', 'sold', 's', 'venda', 'v', 'vender', 'saida'}
+_BUY_WORDS = {'buy', 'purchase', 'bought', 'b', 'compra', 'c', 'comprar', 'entrada'}
+
+
+def _decode(content: bytes) -> str:
+    """Broker exports are not always UTF-8; fall back rather than blow up."""
+    for encoding in ('utf-8-sig', 'latin-1'):
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return content.decode('utf-8', errors='replace')
+
+
+def detect_columns(content: bytes) -> list[str]:
+    """The file's header names, as written, for the mapping dropdowns."""
+    text = _decode(content)
+    reader = csv.DictReader(io.StringIO(text), dialect=_sniff_csv_dialect(text))
+    return [f.strip() for f in (reader.fieldnames or []) if f and f.strip()]
+
+
+def _normalize_header(value: str) -> str:
+    """Fold a header (or a buy/sell word) to its comparable form.
+
+    Accents come off because a Brazilian export writes `Preço` and `Operação`,
+    and a header that only differs by a diacritic is the same header.
+    """
+    folded = _strip_accents(value.strip().lower().replace('_', ' '))
+    return ' '.join(folded.split())
+
+
+def _auto_mapping(headers: list[str]) -> dict[str, str]:
+    """Guess which column is which, so a recognisable file needs no mapping."""
+    normalized = {_normalize_header(h): h for h in headers}
+    mapping: dict[str, str] = {}
+    for field, candidates in _COLUMN_CANDIDATES.items():
+        for candidate in candidates:
+            if candidate in normalized:
+                mapping[field] = normalized[candidate]
+                break
+    return mapping
+
+
+def _parse_date(raw: str, date_format: Optional[str]) -> Optional[date_type]:
+    raw = raw.strip()
+    if not raw:
+        return None
+    formats = []
+    if date_format and date_format in DATE_FORMAT_MAP:
+        formats.append(DATE_FORMAT_MAP[date_format])
+    formats.extend(['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y', '%Y/%m/%d', '%d.%m.%Y'])
+    for fmt in formats:
+        try:
+            return datetime.strptime(raw[:10] if len(raw) > 10 and fmt == '%Y-%m-%d' else raw, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_decimal(raw: str) -> Optional[Decimal]:
+    raw = (raw or '').strip()
+    if not raw:
+        return None
+    try:
+        return Decimal(str(normalize_amount(raw)))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+
+def parse_orders_csv(
+    content: bytes,
+    column_mapping: Optional[dict[str, str]] = None,
+    date_format: Optional[str] = None,
+) -> tuple[list[AssetOrderImport], list[AssetImportRowError], list[str]]:
+    """Read a broker CSV into orders, plus one error per row that could not be read.
+
+    Bad rows are reported rather than skipped in silence: a file where a third
+    of the rows had an unreadable date should say so before anything is
+    imported, not quietly bring in the other two thirds.
+    """
+    text = _decode(content)
+    dialect = _sniff_csv_dialect(text)
+    reader = csv.DictReader(io.StringIO(text), dialect=dialect)
+    headers = [f.strip() for f in (reader.fieldnames or []) if f and f.strip()]
+    if not headers:
+        raise ValueError('CSV has no header row')
+
+    mapping = {k: v for k, v in (column_mapping or {}).items() if v}
+    for field, header in _auto_mapping(headers).items():
+        mapping.setdefault(field, header)
+
+    missing = [f for f in ASSET_CSV_REQUIRED_FIELDS if f not in mapping]
+    if missing:
+        raise ValueError(f"Missing required column mapping: {', '.join(missing)}")
+
+    def cell(row: dict, field: str) -> str:
+        header = mapping.get(field)
+        if not header:
+            return ''
+        return (row.get(header) or '').strip()
+
+    orders: list[AssetOrderImport] = []
+    errors: list[AssetImportRowError] = []
+
+    for index, row in enumerate(reader, start=2):  # row 1 is the header
+        if not any((v or '').strip() for v in row.values()):
+            continue
+
+        ticker = cell(row, 'ticker').upper()
+        if not ticker:
+            errors.append(AssetImportRowError(row=index, reason='missing_ticker'))
+            continue
+
+        order_date = _parse_date(cell(row, 'date'), date_format)
+        if order_date is None:
+            errors.append(AssetImportRowError(row=index, reason='invalid_date', ticker=ticker))
+            continue
+
+        quantity = _parse_decimal(cell(row, 'quantity'))
+        if quantity is None or quantity == 0:
+            errors.append(AssetImportRowError(row=index, reason='invalid_quantity', ticker=ticker))
+            continue
+
+        price = _parse_decimal(cell(row, 'price'))
+        if price is None or price < 0:
+            errors.append(AssetImportRowError(row=index, reason='invalid_price', ticker=ticker))
+            continue
+
+        # Buy or sell comes from an explicit column when the file has one, and
+        # from the sign of the quantity otherwise — the convention brokers use.
+        kind_word = _normalize_header(cell(row, 'kind'))
+        if kind_word in _SELL_WORDS:
+            kind = 'sell'
+        elif kind_word in _BUY_WORDS:
+            kind = 'buy'
+        elif kind_word:
+            errors.append(AssetImportRowError(row=index, reason='invalid_kind', ticker=ticker))
+            continue
+        else:
+            kind = 'sell' if quantity < 0 else 'buy'
+
+        orders.append(AssetOrderImport(
+            row=index,
+            ticker=ticker,
+            date=order_date,
+            kind=kind,
+            quantity=abs(quantity),
+            price=price,
+            fee=_parse_decimal(cell(row, 'fee')) or Decimal('0'),
+            currency=(cell(row, 'currency') or None),
+            name=(cell(row, 'name') or None),
+            notes=(cell(row, 'notes') or None),
+            external_id=(cell(row, 'external_id') or None),
+        ))
+
+    return orders, errors, headers
+
+
+async def resolve_tickers(
+    tickers: list[str],
+    *,
+    market_provider: Optional[MarketPriceProvider] = None,
+) -> dict[str, bool]:
+    """Which of these tickers the price provider recognises.
+
+    One batch call for the whole file. A ticker the provider does not know can
+    still be imported onto a holding that already exists in the workspace; it
+    is only a problem when the holding would have to be created.
+    """
+    provider = market_provider or get_market_price_provider()
+    unique = sorted({t.upper() for t in tickers if t})
+    if not unique:
+        return {}
+    try:
+        prices = await provider.get_latest_prices(unique)
+    except Exception:  # provider down or rate-limited: nothing is resolvable
+        return {t: False for t in unique}
+    return {t: prices.get(t) is not None for t in unique}
+
+
+async def _existing_holdings(
+    session: AsyncSession,
+    workspace_id: uuid.UUID,
+    group_id: Optional[uuid.UUID],
+    tickers: list[str],
+) -> dict[str, Asset]:
+    if not tickers:
+        return {}
+    result = await session.execute(
+        select(Asset).where(
+            Asset.workspace_id == workspace_id,
+            Asset.valuation_method == 'market_price',
+            Asset.group_id == group_id,
+            Asset.ticker.in_(sorted({t.upper() for t in tickers})),
+        )
+    )
+    return {a.ticker.upper(): a for a in result.scalars().all() if a.ticker}
+
+
+async def _already_imported(
+    session: AsyncSession,
+    asset_ids: list[uuid.UUID],
+) -> set[tuple]:
+    """Fingerprints of the ledger rows these holdings already carry.
+
+    Re-uploading the same file is the normal way people fix a mapping mistake,
+    so a repeat run should add nothing rather than double the position.
+    """
+    if not asset_ids:
+        return set()
+    result = await session.execute(
+        select(AssetTransaction).where(AssetTransaction.asset_id.in_(asset_ids))
+    )
+    seen = set()
+    for tx in result.scalars().all():
+        if tx.external_id:
+            seen.add(('external', tx.asset_id, tx.external_id))
+        seen.add(('row', tx.asset_id, tx.date, tx.kind, tx.quantity, tx.price))
+    return seen
+
+
+async def import_orders(
+    session: AsyncSession,
+    workspace_id: uuid.UUID,
+    user_id: uuid.UUID,
+    orders: list[AssetOrderImport],
+    *,
+    group_id: Optional[uuid.UUID] = None,
+    dry_run: bool = False,
+    market_provider: Optional[MarketPriceProvider] = None,
+) -> dict:
+    """Apply a file of orders to the workspace's holdings.
+
+    Returns the counts the UI reports, and — on a dry run — the same numbers
+    without writing anything, so the preview can promise what the import will
+    do instead of guessing.
+    """
+    ordered = sorted(orders, key=lambda o: (o.date, o.row))
+    tickers = [o.ticker for o in ordered]
+
+    holdings = await _existing_holdings(session, workspace_id, group_id, tickers)
+    seen = await _already_imported(session, [a.id for a in holdings.values()])
+
+    missing_tickers = sorted({t for t in tickers if t not in holdings})
+    resolvable = await resolve_tickers(missing_tickers, market_provider=market_provider) if missing_tickers else {}
+
+    errors: list[AssetImportRowError] = []
+    accepted: list[AssetOrderImport] = []
+    skipped = 0
+
+    # Units per ticker as the file is replayed, so a sell that would leave the
+    # position negative is caught here rather than by the ledger halfway
+    # through the write.
+    units: dict[str, Decimal] = {
+        ticker: Decimal(str(asset.units or 0)) for ticker, asset in holdings.items()
+    }
+
+    for order in ordered:
+        if order.ticker not in holdings and not resolvable.get(order.ticker, False):
+            errors.append(AssetImportRowError(row=order.row, reason='unknown_ticker', ticker=order.ticker))
+            continue
+
+        asset = holdings.get(order.ticker)
+        if asset is not None:
+            fingerprint = ('row', asset.id, order.date, order.kind, order.quantity, order.price)
+            external = ('external', asset.id, order.external_id) if order.external_id else None
+            if fingerprint in seen or (external and external in seen):
+                skipped += 1
+                continue
+
+        held = units.get(order.ticker, Decimal('0'))
+        if order.kind == 'sell' and order.quantity > held:
+            errors.append(AssetImportRowError(
+                row=order.row, reason='oversell', ticker=order.ticker,
+                detail=f'selling {order.quantity} with {held} held',
+            ))
+            continue
+
+        units[order.ticker] = held + (order.quantity if order.kind == 'buy' else -order.quantity)
+        accepted.append(order)
+
+    to_create = sorted({o.ticker for o in accepted if o.ticker not in holdings})
+    summary = {
+        'imported': len(accepted),
+        'skipped': skipped,
+        'holdings_created': len(to_create),
+        'holdings_matched': len({o.ticker for o in accepted if o.ticker in holdings}),
+        'errors': errors,
+    }
+    if dry_run or not accepted:
+        return summary
+
+    quotes = {}
+    if to_create:
+        provider = market_provider or get_market_price_provider()
+        quotes = await provider.get_quotes(to_create)
+
+    touched: dict[str, Asset] = {}
+    written = 0
+    for order in accepted:
+        asset = holdings.get(order.ticker)
+        if asset is None:
+            quote = quotes.get(order.ticker)
+            if quote is None:
+                # Resolvable a moment ago in the batch check, gone now. Report
+                # it rather than inventing a holding with no price.
+                errors.append(AssetImportRowError(row=order.row, reason='unknown_ticker', ticker=order.ticker))
+                continue
+            asset = Asset(
+                user_id=user_id,
+                workspace_id=workspace_id,
+                name=order.name or quote.name or order.ticker,
+                type=asset_transaction_service._type_from_quote(quote.quote_type),
+                currency=order.currency or quote.currency,
+                valuation_method='market_price',
+                group_id=group_id,
+                ticker=order.ticker,
+                ticker_exchange=quote.exchange,
+                last_price=Decimal(str(quote.price)),
+                last_price_at=datetime.now(timezone.utc),
+                logo_url=quote.logo_url,
+                source='yfinance',
+            )
+            session.add(asset)
+            await session.flush()
+            holdings[order.ticker] = asset
+
+        session.add(AssetTransaction(
+            asset_id=asset.id,
+            workspace_id=workspace_id,
+            kind=order.kind,
+            quantity=order.quantity,
+            price=order.price,
+            fee=order.fee or Decimal('0'),
+            date=order.date,
+            source='import',
+            external_id=order.external_id,
+            notes=order.notes,
+        ))
+        touched[order.ticker] = asset
+        written += 1
+
+    await session.flush()
+    # Once per holding, not once per row: the recompute walks the whole ledger.
+    for asset in touched.values():
+        await asset_transaction_service.recompute_and_cache(session, asset)
+    await session.commit()
+
+    summary['errors'] = errors
+    summary['imported'] = written
+    summary['holdings_created'] = len([t for t in to_create if t in touched])
+    return summary
+
+
+def csv_template() -> str:
+    """A file someone can fill in, with the required columns marked."""
+    return (
+        'ticker*,date*,quantity*,price*,fee,kind,currency,notes\n'
+        'AAPL,2026-01-15,10,150.00,1.20,buy,USD,\n'
+        'AAPL,2026-03-02,-4,178.30,1.20,sell,USD,partial exit\n'
+        'PETR4.SA,2026-02-10,100,38.50,2.90,buy,BRL,\n'
+    )

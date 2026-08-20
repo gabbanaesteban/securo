@@ -1038,6 +1038,54 @@
     "mapExternalId": "Columna de ID de transacción",
     "mapNotes": "Columna de notas"
   },
+  "assetImport": {
+    "title": "Importar órdenes de inversión",
+    "action": "Importar órdenes",
+    "intro": "Sube un CSV de compras y ventas de tu bróker. Securo calcula la posición y el precio medio a partir de las órdenes, igual que con las añadidas a mano.",
+    "choose": "Elegir un archivo CSV",
+    "chooseHint": "Ticker, fecha, cantidad y precio son obligatorios. Una cantidad negativa se lee como venta.",
+    "downloadTemplate": "Descargar plantilla",
+    "wallet": "Cartera",
+    "noWallet": "Sin cartera",
+    "reading": "Leyendo el archivo…",
+    "mapPrompt": "No pudimos identificar las columnas. Asigna cada campo a una columna de tu archivo.",
+    "ignoreColumn": "Ignorar",
+    "previewError": "No se pudo leer ese archivo",
+    "importError": "No se pudieron importar las órdenes",
+    "imported": "{{count}} órdenes importadas",
+    "importing": "Importando…",
+    "confirm": "Importar {{count}} órdenes",
+    "summaryOrders": "{{count}} órdenes listas",
+    "summaryHoldings": "{{created}} activos creados, {{matched}} encontrados",
+    "summarySkipped": "{{count}} ya importadas",
+    "rowsSkipped": "{{count}} filas se omitirán",
+    "rowError": "Fila {{row}} ({{ticker}}): {{reason}}",
+    "moreErrors": "y {{count}} más",
+    "moreRows": "y {{count}} órdenes más",
+    "field": {
+      "ticker": "Ticker",
+      "date": "Fecha",
+      "quantity": "Cantidad",
+      "price": "Precio",
+      "fee": "Comisión",
+      "kind": "Compra/Venta",
+      "currency": "Moneda",
+      "notes": "Notas"
+    },
+    "kind": {
+      "buy": "Compra",
+      "sell": "Venta"
+    },
+    "reason": {
+      "missing_ticker": "sin ticker",
+      "invalid_date": "fecha ilegible",
+      "invalid_quantity": "cantidad ilegible",
+      "invalid_price": "precio ilegible",
+      "invalid_kind": "compra/venta no reconocida",
+      "unknown_ticker": "ticker no encontrado por el proveedor de precios",
+      "oversell": "venta mayor que la posición"
+    }
+  },
   "assets": {
     "title": "Activos",
     "addAsset": "Agregar activo",
