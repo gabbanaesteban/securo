@@ -322,3 +322,54 @@ async def test_created_holding_takes_the_quote_currency_not_the_file(
     assert summary["imported"] == 1
     stored = await _only_asset(session, test_workspace)
     assert stored.currency == "USD"  # what the provider quotes it in
+
+
+@pytest.mark.asyncio
+async def test_warns_when_the_ticker_already_sits_in_another_wallet(
+    session: AsyncSession, test_user: User, test_workspace: Workspace, provider
+):
+    """Two brokers, two positions is legitimate; a mis-picked wallet looks the
+    same, so the preview says it rather than leaving it to be noticed later."""
+    from app.models.asset_group import AssetGroup
+
+    wallet = AssetGroup(id=uuid.uuid4(), workspace_id=test_workspace.id, user_id=test_user.id, name="Corretora B")
+    session.add(wallet)
+    await session.flush()
+    session.add(Asset(
+        id=uuid.uuid4(), user_id=test_user.id, workspace_id=test_workspace.id,
+        name="Apple", type="stock", currency="USD", valuation_method="market_price",
+        ticker="AAPL", group_id=wallet.id, units=Decimal("5"),
+    ))
+    await session.commit()
+
+    summary = await _import(session, test_workspace, test_user, _csv(
+        "ticker,date,quantity,price",
+        "AAPL,2026-01-15,10,100.00",
+    ), provider, dry_run=True)
+
+    assert [(w.ticker, w.reason, w.wallet) for w in summary["warnings"]] == [
+        ("AAPL", "exists_in_other_wallet", "Corretora B"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_warns_harder_when_the_same_orders_are_already_in_another_wallet(
+    session: AsyncSession, test_user: User, test_workspace: Workspace, provider
+):
+    """Importing the same file into a second wallet counts the shares twice,
+    and the wallet-scoped dedup cannot see it."""
+    from app.models.asset_group import AssetGroup
+
+    wallet = AssetGroup(id=uuid.uuid4(), workspace_id=test_workspace.id, user_id=test_user.id, name="Corretora B")
+    session.add(wallet)
+    await session.flush()
+    await session.commit()
+
+    content = _csv("ticker,date,quantity,price", "AAPL,2026-01-15,10,100.00")
+    await _import(session, test_workspace, test_user, content, provider, group_id=wallet.id)
+
+    summary = await _import(session, test_workspace, test_user, content, provider, dry_run=True)
+
+    assert [(w.ticker, w.reason, w.wallet) for w in summary["warnings"]] == [
+        ("AAPL", "orders_already_in_other_wallet", "Corretora B"),
+    ]

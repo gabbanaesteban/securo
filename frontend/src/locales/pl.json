@@ -1146,6 +1146,11 @@
       "currency": "Waluta",
       "notes": "Notatki"
     },
+    "walletWarningTitle": "Już w Twoim portfelu",
+    "warning": {
+      "exists_in_other_wallet": "{{ticker}} znajduje się już w {{wallet}}. Import tutaj utworzy drugą pozycję.",
+      "orders_already_in_other_wallet": "{{ticker}}: te same zlecenia są już w {{wallet}}. Import tutaj policzyłby walory dwa razy."
+    },
     "kind": {
       "buy": "Kupno",
       "sell": "Sprzedaż"

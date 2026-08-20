@@ -746,9 +746,16 @@ export interface AssetImportRowError {
   detail: string | null
 }
 
+export interface AssetImportWarning {
+  ticker: string
+  reason: string
+  wallet: string | null
+}
+
 export interface AssetImportPreview {
   orders: AssetOrderImport[]
   errors: AssetImportRowError[]
+  warnings: AssetImportWarning[]
   csv_columns: string[]
   parse_error: string | null
   holdings_created: number
@@ -762,6 +769,7 @@ export interface AssetImportResult {
   holdings_created: number
   holdings_matched: number
   errors: AssetImportRowError[]
+  warnings: AssetImportWarning[]
 }
 
 export interface AssetTransaction {

@@ -31,9 +31,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.asset import Asset
+from app.models.asset_group import AssetGroup
 from app.models.asset_transaction import AssetTransaction
 from app.providers.market_price import MarketPriceProvider, get_market_price_provider
-from app.schemas.asset_import import AssetOrderImport, AssetImportRowError
+from app.schemas.asset_import import (
+    AssetImportRowError,
+    AssetImportWarning,
+    AssetOrderImport,
+)
 from app.services import asset_transaction_service
 from app.services.import_service import (
     DATE_FORMAT_MAP,
@@ -360,6 +365,35 @@ async def _existing_holdings(
     return {a.ticker.upper(): a for a in result.scalars().all() if a.ticker}
 
 
+async def _holdings_in_other_wallets(
+    session: AsyncSession,
+    workspace_id: uuid.UUID,
+    group_id: Optional[uuid.UUID],
+    tickers: list[str],
+) -> dict[str, tuple[Asset, Optional[str]]]:
+    """The same tickers held under a *different* wallet, with that wallet's name.
+
+    Holdings are scoped per wallet, so importing AAPL into one wallet while
+    AAPL already sits in another is a legitimate thing to do — two brokers,
+    two positions. It is also exactly what a mis-picked wallet looks like, and
+    the portfolio then counts the same shares twice, so the preview says it out
+    loud instead of leaving it to be noticed later.
+    """
+    if not tickers:
+        return {}
+    result = await session.execute(
+        select(Asset, AssetGroup.name)
+        .outerjoin(AssetGroup, AssetGroup.id == Asset.group_id)
+        .where(
+            Asset.workspace_id == workspace_id,
+            Asset.valuation_method == 'market_price',
+            Asset.group_id.is_not(None) if group_id is None else Asset.group_id != group_id,
+            Asset.ticker.in_(sorted({t.upper() for t in tickers})),
+        )
+    )
+    return {asset.ticker.upper(): (asset, name) for asset, name in result.all() if asset.ticker}
+
+
 async def _already_imported(
     session: AsyncSession,
     asset_ids: list[uuid.UUID],
@@ -403,6 +437,23 @@ async def import_orders(
 
     holdings = await _existing_holdings(session, workspace_id, group_id, tickers)
     seen = await _already_imported(session, [a.id for a in holdings.values()])
+
+    elsewhere = await _holdings_in_other_wallets(session, workspace_id, group_id, tickers)
+    warnings: list[AssetImportWarning] = []
+    if elsewhere:
+        seen_elsewhere = await _already_imported(session, [a.id for a, _ in elsewhere.values()])
+        for ticker, (other, wallet_name) in sorted(elsewhere.items()):
+            # Same orders already on the other holding is the strong signal:
+            # this is the same position about to be counted twice.
+            duplicated = any(
+                ('row', other.id, o.date, o.kind, o.quantity, o.price) in seen_elsewhere
+                for o in ordered if o.ticker == ticker
+            )
+            warnings.append(AssetImportWarning(
+                ticker=ticker,
+                reason='orders_already_in_other_wallet' if duplicated else 'exists_in_other_wallet',
+                wallet=wallet_name,
+            ))
 
     missing_tickers = sorted({t for t in tickers if t not in holdings})
     resolvable = await resolve_tickers(missing_tickers, market_provider=market_provider) if missing_tickers else {}
@@ -449,6 +500,7 @@ async def import_orders(
         'holdings_created': len(to_create),
         'holdings_matched': len({o.ticker for o in accepted if o.ticker in holdings}),
         'errors': errors,
+        'warnings': warnings,
     }
     if dry_run or not accepted:
         return summary

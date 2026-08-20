@@ -288,6 +288,7 @@ async def preview_asset_import(
     return AssetImportPreview(
         orders=[o for o in orders if o.row not in rejected],
         errors=errors + summary["errors"],
+        warnings=summary["warnings"],
         csv_columns=columns,
         holdings_created=summary["holdings_created"],
         holdings_matched=summary["holdings_matched"],

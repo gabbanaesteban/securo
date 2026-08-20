@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { AlertTriangle, Download, FileUp, Upload, X } from 'lucide-react'
+import { AlertTriangle, Download, FileUp, Info, Upload, X } from 'lucide-react'
 
 import { assets as assetsApi, assetGroups as assetGroupsApi } from '@/lib/api'
 import type { AssetImportPreview, AssetOrderImport } from '@/types'
@@ -109,6 +109,7 @@ export default function AssetImportPage() {
 
   const importable = preview?.orders.length ?? 0
   const rowErrors = preview?.errors ?? []
+  const walletWarnings = preview?.warnings ?? []
   const needsMapping = !!preview?.parse_error
 
   return (
@@ -200,6 +201,25 @@ export default function AssetImportPage() {
                 </span>
               )}
             </div>
+
+            {walletWarnings.length > 0 && (
+              <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
+                <p className="mb-2 flex items-center gap-2 text-sm font-medium text-sky-400">
+                  <Info size={14} />
+                  {t('assetImport.walletWarningTitle')}
+                </p>
+                <ul className="space-y-1 text-xs text-muted-foreground">
+                  {walletWarnings.map((w) => (
+                    <li key={`${w.ticker}-${w.reason}`}>
+                      {t(`assetImport.warning.${w.reason}`, {
+                        ticker: w.ticker,
+                        wallet: w.wallet ?? '—',
+                      })}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {rowErrors.length > 0 && (
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">

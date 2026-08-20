@@ -31,9 +31,18 @@ class AssetImportRowError(BaseModel):
     detail: Optional[str] = None
 
 
+class AssetImportWarning(BaseModel):
+    """Not a reason to refuse a row, but something to see before confirming."""
+
+    ticker: str
+    reason: str  # exists_in_other_wallet | orders_already_in_other_wallet
+    wallet: Optional[str] = None
+
+
 class AssetImportPreview(BaseModel):
     orders: list[AssetOrderImport]
     errors: list[AssetImportRowError] = []
+    warnings: list[AssetImportWarning] = []
     csv_columns: list[str] = []
     #: Set when the file could not be read at all, so the UI can show the
     #: mapping dropdowns instead of an empty preview.
@@ -55,3 +64,4 @@ class AssetImportResult(BaseModel):
     holdings_created: int
     holdings_matched: int
     errors: list[AssetImportRowError] = []
+    warnings: list[AssetImportWarning] = []

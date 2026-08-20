@@ -1071,6 +1071,11 @@
       "currency": "Valuta",
       "notes": "Note"
     },
+    "walletWarningTitle": "Già nel tuo portafoglio",
+    "warning": {
+      "exists_in_other_wallet": "{{ticker}} è già presente in {{wallet}}. Importare qui crea una seconda posizione.",
+      "orders_already_in_other_wallet": "{{ticker}}: questi stessi ordini sono già in {{wallet}}. Importare qui conterebbe i titoli due volte."
+    },
     "kind": {
       "buy": "Acquisto",
       "sell": "Vendita"

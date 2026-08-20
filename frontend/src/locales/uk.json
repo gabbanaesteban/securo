@@ -1077,6 +1077,11 @@
       "currency": "Валюта",
       "notes": "Нотатки"
     },
+    "walletWarningTitle": "Уже у вашому портфелі",
+    "warning": {
+      "exists_in_other_wallet": "{{ticker}} уже є в {{wallet}}. Імпорт сюди створить другу позицію.",
+      "orders_already_in_other_wallet": "{{ticker}}: ці самі заявки вже є в {{wallet}}. Імпорт сюди порахує папери двічі."
+    },
     "kind": {
       "buy": "Купівля",
       "sell": "Продаж"
