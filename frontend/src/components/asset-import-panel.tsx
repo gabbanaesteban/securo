@@ -7,7 +7,7 @@ import { AlertTriangle, Download, FileUp, Info, Upload, X } from 'lucide-react'
 
 import { assets as assetsApi, assetGroups as assetGroupsApi } from '@/lib/api'
 import type { AssetImportPreview, AssetOrderImport } from '@/types'
-import { PageHeader } from '@/components/page-header'
+import { ImportHistory } from '@/components/import-history'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 
@@ -33,7 +33,7 @@ function SectionCard({ children }: { children: React.ReactNode }) {
 const SELECT_CLASS =
   'border border-border rounded-lg px-2 py-1.5 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
 
-export default function AssetImportPage() {
+export function AssetImportPanel() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -95,7 +95,7 @@ export default function AssetImportPage() {
     if (!preview || preview.orders.length === 0) return
     setImporting(true)
     try {
-      const result = await assetsApi.importOrders(preview.orders as AssetOrderImport[], groupId || null)
+      const result = await assetsApi.importOrders(preview.orders as AssetOrderImport[], groupId || null, file?.name)
       queryClient.invalidateQueries({ queryKey: ['assets'] })
       queryClient.invalidateQueries({ queryKey: ['asset-groups'] })
       toast.success(t('assetImport.imported', { count: result.imported }))
@@ -114,31 +114,28 @@ export default function AssetImportPage() {
 
   return (
     <div>
-      <PageHeader
-        section={t('assets.title')}
-        title={t('assetImport.title')}
-        action={
-          <Button variant="outline" onClick={() => assetsApi.importTemplate()}>
+      <SectionCard>
+        {/* The page header belongs to the tab shell, so the template lives
+            beside the wallet picker rather than in the title row. */}
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="grid flex-1 gap-2 sm:max-w-xs">
+            <Label htmlFor="asset-import-wallet">{t('assetImport.wallet')}</Label>
+            <select
+              id="asset-import-wallet"
+              className={SELECT_CLASS}
+              value={groupId}
+              onChange={(e) => handleWalletChange(e.target.value)}
+            >
+              <option value="">{t('assetImport.noWallet')}</option>
+              {(wallets ?? []).map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </div>
+          <Button variant="outline" onClick={() => assetsApi.importTemplate()} className="shrink-0">
             <Download size={14} className="mr-1" />
             {t('assetImport.downloadTemplate')}
           </Button>
-        }
-      />
-
-      <SectionCard>
-        <div className="mb-4 grid gap-2 sm:max-w-xs">
-          <Label htmlFor="asset-import-wallet">{t('assetImport.wallet')}</Label>
-          <select
-            id="asset-import-wallet"
-            className={SELECT_CLASS}
-            value={groupId}
-            onChange={(e) => handleWalletChange(e.target.value)}
-          >
-            <option value="">{t('assetImport.noWallet')}</option>
-            {(wallets ?? []).map((w) => (
-              <option key={w.id} value={w.id}>{w.name}</option>
-            ))}
-          </select>
         </div>
 
         <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-6 py-10 text-center transition-colors hover:border-primary/50">
@@ -296,6 +293,8 @@ export default function AssetImportPage() {
           </div>
         )}
       </SectionCard>
+
+      <ImportHistory entity="asset_orders" />
     </div>
   )
 }
