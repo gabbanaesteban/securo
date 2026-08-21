@@ -1126,6 +1126,8 @@
     "choose": "Wybierz plik CSV",
     "chooseHint": "Ticker, data, ilość i cena są wymagane. Ujemna ilość oznacza sprzedaż.",
     "downloadTemplate": "Pobierz szablon",
+    "importTo": "Importuj do",
+    "nothingToImport": "Nie ma czego zaimportować z tego pliku",
     "wallet": "Portfel",
     "noWallet": "Bez portfela",
     "reading": "Wczytywanie pliku…",

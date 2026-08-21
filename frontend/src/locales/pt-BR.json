@@ -1048,6 +1048,8 @@
     "choose": "Escolher um arquivo CSV",
     "chooseHint": "Ativo, data, quantidade e preço são obrigatórios. Quantidade negativa é lida como venda.",
     "downloadTemplate": "Baixar modelo",
+    "importTo": "Importar para",
+    "nothingToImport": "Nada para importar deste arquivo",
     "wallet": "Carteira",
     "noWallet": "Sem carteira",
     "reading": "Lendo o arquivo…",

@@ -1048,6 +1048,8 @@
     "choose": "Choose a CSV file",
     "chooseHint": "Ticker, date, quantity and price are required. A negative quantity is read as a sale.",
     "downloadTemplate": "Download template",
+    "importTo": "Import into",
+    "nothingToImport": "Nothing left to import from this file",
     "wallet": "Wallet",
     "noWallet": "No wallet",
     "reading": "Reading the file…",

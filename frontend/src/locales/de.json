@@ -1048,6 +1048,8 @@
     "choose": "CSV-Datei auswählen",
     "chooseHint": "Ticker, Datum, Stückzahl und Preis sind Pflicht. Eine negative Stückzahl gilt als Verkauf.",
     "downloadTemplate": "Vorlage herunterladen",
+    "importTo": "Importieren nach",
+    "nothingToImport": "Aus dieser Datei gibt es nichts zu importieren",
     "wallet": "Depot",
     "noWallet": "Kein Depot",
     "reading": "Datei wird gelesen…",

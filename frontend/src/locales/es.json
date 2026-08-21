@@ -1048,6 +1048,8 @@
     "choose": "Elegir un archivo CSV",
     "chooseHint": "Ticker, fecha, cantidad y precio son obligatorios. Una cantidad negativa se lee como venta.",
     "downloadTemplate": "Descargar plantilla",
+    "importTo": "Importar a",
+    "nothingToImport": "No queda nada para importar de este archivo",
     "wallet": "Cartera",
     "noWallet": "Sin cartera",
     "reading": "Leyendo el archivo…",
