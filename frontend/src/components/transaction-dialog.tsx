@@ -487,7 +487,8 @@ function TransactionForm({
     return !!(existing && existing.length > 0)
   })
   const isCreating = !transaction
-  const showConversion = currency !== userCurrency && !isSynced
+  const isBalanceAdjustment = transaction?.source === 'balance_adjustment'
+  const showConversion = currency !== userCurrency && !isSynced && !isBalanceAdjustment
   // Privacy mode hides monetary values across the app, but the edit modal
   // surfaced the raw amount anyway (issue #323). Only existing transactions
   // carry a value worth hiding — when creating, the user must see what they
@@ -764,7 +765,14 @@ function TransactionForm({
         const pnlExclusionPayload = transaction
           ? { exclude_from_pnl: excludeFromReports }
           : {}
-        const txData = isSynced
+        const txData = isBalanceAdjustment
+          ? {
+              amount: parseFloat(amount),
+              type,
+              notes: notes.trim() || null,
+              ...pnlExclusionPayload,
+            } as TransactionEditPayload
+          : isSynced
           ? {
               category_id: categoryId || null,
               payee_id: payeeId || null,
@@ -905,7 +913,7 @@ function TransactionForm({
       )}
       <div className="space-y-2">
         <Label>{t('transactions.description')}</Label>
-        {isSynced ? (
+        {isSynced || isBalanceAdjustment ? (
           <textarea
             ref={descriptionRef}
             className="w-full border border-input rounded-md px-3 py-2 text-sm bg-muted/40 text-muted-foreground resize-none overflow-hidden cursor-default outline-none focus:outline-none focus-visible:outline-none"
@@ -976,7 +984,7 @@ function TransactionForm({
             className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card h-9 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
             value={currency}
             onChange={(e) => handleCurrencyChange(e.target.value)}
-            disabled={isSynced}
+            disabled={isSynced || isBalanceAdjustment}
           >
             {(supportedCurrencies ?? [{ code: userCurrency, symbol: userCurrency, name: userCurrency, flag: '' }]).map((c) => (
               <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
@@ -990,7 +998,7 @@ function TransactionForm({
           <DatePickerInput
             value={date}
             onChange={setDate}
-            disabled={isSynced}
+            disabled={isSynced || isBalanceAdjustment}
             className="w-full justify-start"
           />
         </div>
@@ -1000,7 +1008,7 @@ function TransactionForm({
             className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card h-9 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
             value={status}
             onChange={(e) => setStatus(e.target.value as 'posted' | 'pending')}
-            disabled={isSynced}
+            disabled={isSynced || isBalanceAdjustment}
           >
             <option value="posted">{t('transactions.statusPosted')}</option>
             <option value="pending">{t('transactions.statusPending')}</option>
@@ -1077,6 +1085,7 @@ function TransactionForm({
             groups={categoryGroups}
             currentCategory={seed?.category}
             allowNone={true}
+            disabled={isBalanceAdjustment}
             className="bg-card"
           />
         </div>
@@ -1085,9 +1094,10 @@ function TransactionForm({
         <div className="space-y-2">
           <Label>{t('payees.payee')}</Label>
           <select
-            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
             value={payeeId}
             onChange={(e) => setPayeeId(e.target.value)}
+            disabled={isBalanceAdjustment}
           >
             <option value="">{t('payees.noPayee')}</option>
             {(payeesList ?? []).map((p) => (
@@ -1102,9 +1112,10 @@ function TransactionForm({
           <div className="space-y-2">
             <Label>{t('transactions.account')}</Label>
             <select
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-card disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
+              disabled={isBalanceAdjustment}
               required
             >
               {sortedAccounts.map((acc) => (
@@ -1151,7 +1162,7 @@ function TransactionForm({
           whose due_date matches. */}
       {(() => {
         const selectedAcc = accounts.find(a => a.id === accountId)
-        if (selectedAcc?.type !== 'credit_card') return null
+        if (isBalanceAdjustment || selectedAcc?.type !== 'credit_card') return null
         return (
           <div className="space-y-2">
             <Label>
@@ -1185,7 +1196,7 @@ function TransactionForm({
           group debt; splitting it would create circular accounting
           (the share would settle a debt that this debit is already
           settling). Hide the section entirely in that case. */}
-      {transaction?.source !== 'settlement' && (
+      {transaction?.source !== 'settlement' && !isBalanceAdjustment && (
         <TransactionSplitsSection
           amount={parseAmountInput(amount, displayLocale) ?? 0}
           currency={currency}
@@ -1320,7 +1331,7 @@ function TransactionForm({
               {t('common.delete')}
             </Button>
           )}
-          {seed?.id && (
+          {seed?.id && !isBalanceAdjustment && (
             <Button
               type="button"
               variant={isIgnored ? 'secondary' : 'outline'}
@@ -1333,7 +1344,7 @@ function TransactionForm({
               {isIgnored ? t('transactions.unignoreAction') : t('transactions.ignoreAction')}
             </Button>
           )}
-          {transaction && onCreateRule && (
+          {transaction && onCreateRule && !isBalanceAdjustment && (
             <div className="inline-flex">
               <Button
                 type="button"
