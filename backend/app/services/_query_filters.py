@@ -181,6 +181,12 @@ def counts_on_bill():
       - `treat_as_transfer` categories. Buying an investment with the
         card still lands on the statement; the category says how to
         report the purchase, not whether the bank billed for it.
+      - rows flagged `exclude_from_pnl`. Its canonical use is a work
+        expense paid on a personal card and reimbursed later — and the
+        bank bills the whole card either way.
+
+    The rule both share: a bill honors "make this disappear" and
+    ignores "report this differently".
 
     Deliberately spelled out rather than defined as "`counts_as_pnl`
     minus a clause": a filter for what a *report* excludes will keep
