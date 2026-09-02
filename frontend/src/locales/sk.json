@@ -777,6 +777,7 @@
     "ignoreTransferHint": "Ignorované transakcie sa nezobrazia v reportoch ani v zostatku",
     "excludeFromReports": "Vylúčiť z reportov",
     "excludeFromReportsHint": "Táto transakcia sa nebude započítavať ako príjem ani výdavok, ale naďalej ovplyvní zostatok účtu a zostane v histórii transakcií.",
+    "excludedFromReports": "Mimo výkazov",
     "ignored": "Ignorovaná",
     "ignoreAction": "Ignorovať",
     "unignoreAction": "Obnoviť",

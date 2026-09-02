@@ -638,6 +638,7 @@ export interface TransactionCalendarItem {
   transfer_pair_id: string | null
   is_transfer: boolean
   is_ignored: boolean
+  exclude_from_pnl: boolean
 }
 
 export interface TransactionCalendarDay {

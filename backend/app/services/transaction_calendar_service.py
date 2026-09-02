@@ -370,6 +370,7 @@ def _actual_item(
         transfer_pair_id=tx.transfer_pair_id,
         is_transfer=is_transfer,
         is_ignored=ignored,
+        exclude_from_pnl=bool(tx.exclude_from_pnl),
     )
 
 
@@ -398,6 +399,7 @@ def _forecast_item(
         transfer_pair_id=tx.transfer_pair_id,
         is_transfer=is_transfer,
         is_ignored=ignored,
+        exclude_from_pnl=bool(tx.exclude_from_pnl),
     )
 
 

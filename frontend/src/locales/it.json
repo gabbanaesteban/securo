@@ -733,6 +733,7 @@
     "ignoreTransferHint": "Le transazioni ignorate non appariranno nei report né nel saldo",
     "excludeFromReports": "Escludi dai report",
     "excludeFromReportsHint": "Questa transazione non verrà conteggiata come entrata o uscita, ma continuerà a influire sul saldo del conto e resterà nella cronologia delle transazioni.",
+    "excludedFromReports": "Fuori dai report",
     "ignored": "Ignorata",
     "ignoreAction": "Ignora",
     "unignoreAction": "Ripristina",
