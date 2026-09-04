@@ -765,42 +765,49 @@ function TransactionForm({
         const pnlExclusionPayload = transaction
           ? { exclude_from_pnl: excludeFromReports }
           : {}
-        const txData = isBalanceAdjustment
-          ? {
-              amount: parseFloat(amount),
-              type,
-              notes: notes.trim() || null,
-              ...pnlExclusionPayload,
-            } as TransactionEditPayload
-          : isSynced
-          ? {
-              category_id: categoryId || null,
-              payee_id: payeeId || null,
-              notes: notes.trim() || null,
-              is_ignored: isIgnored,
-              ...pnlExclusionPayload,
-              ...overridePayload,
-              ...splitsPayload,
-            } as TransactionEditPayload
-          : {
-              description,
-              amount: parsedAmount ?? undefined,
-              date,
-              type,
-              currency,
-              category_id: categoryId || null,
-              payee_id: payeeId || null,
-              account_id: accountId || undefined,
-              notes: notes.trim() || null,
-              is_ignored: isIgnored,
-              ...pnlExclusionPayload,
-              // Creation defaults to "posted" server-side; the user can
-              // override to "pending" right in the form (date & status row).
-              status,
-              ...fxFields,
-              ...overridePayload,
-              ...splitsPayload,
-            } as TransactionEditPayload
+        let txData: TransactionEditPayload
+        if (isBalanceAdjustment) {
+          if (parsedAmount == null) {
+            toast.error(t('common.error'))
+            return
+          }
+          txData = {
+            amount: parsedAmount,
+            type,
+            notes: notes.trim() || null,
+            ...pnlExclusionPayload,
+          }
+        } else if (isSynced) {
+          txData = {
+            category_id: categoryId || null,
+            payee_id: payeeId || null,
+            notes: notes.trim() || null,
+            is_ignored: isIgnored,
+            ...pnlExclusionPayload,
+            ...overridePayload,
+            ...splitsPayload,
+          } as TransactionEditPayload
+        } else {
+          txData = {
+            description,
+            amount: parsedAmount ?? undefined,
+            date,
+            type,
+            currency,
+            category_id: categoryId || null,
+            payee_id: payeeId || null,
+            account_id: accountId || undefined,
+            notes: notes.trim() || null,
+            is_ignored: isIgnored,
+            ...pnlExclusionPayload,
+            // Creation defaults to "posted" server-side; the user can
+            // override to "pending" right in the form (date & status row).
+            status,
+            ...fxFields,
+            ...overridePayload,
+            ...splitsPayload,
+          } as TransactionEditPayload
+        }
         const recurringData = isCreating && isRecurring
           ? { frequency, end_date: endDate || undefined }
           : undefined
