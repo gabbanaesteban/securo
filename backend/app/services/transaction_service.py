@@ -1006,6 +1006,8 @@ async def get_transfer_candidates(
         return []
     if anchor.transfer_pair_id is not None:
         return []
+    if anchor.source == "balance_adjustment":
+        return []
 
     opposing_type = "credit" if anchor.type == "debit" else "debit"
     from_date = anchor.date - timedelta(days=window_days)
